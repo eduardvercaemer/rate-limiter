@@ -1,0 +1,25 @@
+{
+  "name": "@vercaemer/rate-limiter",
+  "version": "0.1.0",
+  "description": "Basic rate limiter for Cloudflare Durable Objects with no dependencies.",
+  "author": "Vercaemer <vercaemer . eduard @ gmail . com>",
+  "repository": "https://github.com/eduardvercaemer/rate-limiter",
+  "license": "MIT",
+  "module": "index.ts",
+  "type": "module",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "scripts": {
+    "prepack": "tsc"
+  },
+  "files": [
+    "dist/*"
+  ],
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240329.0",
+    "prettier": "^3.2.5"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "example",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240329.0",
+    "@vercaemer/rate-limiter": "file:..",
+    "wrangler": "^3.41.0"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
