@@ -1,4 +1,4 @@
-interface Rate {
+export interface Rate {
   limit: number;
   interval: number;
 }
@@ -74,17 +74,25 @@ export class RateLimiter {
 
 /**
  * Apply rate limiting to the given key.
+ * @param namespace The Durable Object binding
+ * @param ctx Worker Execution Context
+ * @param name Which durable object to use
+ * @param key Request key
+ * @param rates The array of rates to enforce for the request. This array should be stable across requests
+ * with the same key.
+ * @param options Other options
  */
 export async function rateLimit(
   namespace: DurableObjectNamespace,
   ctx: ExecutionContext,
+  name: string,
   key: string,
   rates: Rate[],
   options?: {
     cacheName?: string;
   },
 ): Promise<Response | null> {
-  const id = namespace.idFromName(key);
+  const id = namespace.idFromName(name);
   const limiter = namespace.get(id);
   const url = new URL("http://rate-limiter");
   const cache = await caches.open(options?.cacheName ?? "rate-limiter");
@@ -113,6 +121,61 @@ export async function rateLimit(
       "Retry-After": (data.retryAt - Math.ceil(Date.now() / 1000)).toString(),
     },
   });
+}
+
+/**
+ * By default, distributes requests to Durable Objects by client IP. If you want to allow requests with no IP, add
+ * RATE_LIMITER_ALLOW_MISSING_IP=true to your env.
+ * @param namespace Durable Object Binding name in the Env
+ * @param rates Array of rates to enforce.
+ * @param key Request key. If missing, use client ip.
+ */
+export function withRateLimiter<
+  N extends string,
+  R extends Request,
+  E extends { [P in N]: DurableObjectNamespace } & { [K in string]: any },
+>(
+  namespace: N,
+  rates:
+    | Rate[]
+    | ((
+        request: R,
+        env: E,
+        ctx: ExecutionContext,
+      ) => Rate[] | Promise<Rate[]> | Response | Promise<Response>),
+  key?:
+    | string
+    | ((
+        request: R,
+        env: E,
+        ctx: ExecutionContext,
+      ) => string | Promise<string> | Response | Promise<Response>),
+) {
+  return async function (request: R, env: E, ctx: ExecutionContext) {
+    const ip = request.headers.get("CF-Connecting-IP");
+    if (ip === null && !env["RATE_LIMITER_ALLOW_MISSING_IP"]) {
+      return new Response("Missing client ip", { status: 403 });
+    }
+    const key_ = typeof key === "function" ? await key(request, env, ctx) : key;
+    if (key_ instanceof Response) {
+      return key_;
+    }
+    const rates_ =
+      typeof rates === "function" ? await rates(request, env, ctx) : rates;
+    if (rates_ instanceof Response) {
+      return rates_;
+    }
+    const limited = await rateLimit(
+      env[namespace],
+      ctx,
+      ip ?? "127.0.0.1",
+      key_ ?? ip ?? "127.0.0.1",
+      rates_,
+    );
+    if (limited) {
+      return limited;
+    }
+  };
 }
 
 function filterUntil<T>(array: T[], predicate: (t: T) => boolean): T[] {
